@@ -110,18 +110,17 @@ impl GUI {
             }
         });
 
-        let keybinder;
-        if std::env::var("WAYLAND_DISPLAY").is_err() {
-            keybinder = match KeyBinder::new(true) {
+        let keybinder = if std::env::var("WAYLAND_DISPLAY").is_err() {
+            match KeyBinder::new(true) {
                 Ok(instance) => Some(instance),
                 Err(_e) => {
                     eprintln!("[ERROR] Keybinder is not supported");
                     std::process::exit(1);
                 }
-            };
+            }
         } else {
-            keybinder = None;
-        }
+            None
+        };
 
         Self {
             keybinder,
@@ -132,9 +131,9 @@ impl GUI {
     }
 
     pub fn wait_for_toggle(&mut self) {
-        if std::env::var("WAYLAND_DISPLAY").is_err() {
+        if let Some(keybinder) = &mut self.keybinder {
             assert!(
-                self.keybinder.as_mut().unwrap().bind(
+                keybinder.bind(
                     &FINDEX_CONFIG.toggle_key,
                     |_, payload| {
                         Self::show_window(
@@ -223,9 +222,8 @@ impl GUI {
         let screen_width = monitor_geo.width() as f32;
 
         window.move_(
-            (screen_width * 0.5 - (window.allocation().width() / 2) as f32) as i32
-                + monitor_geo.x(),
-            (screen_height * 0.3) as i32 + monitor_geo.y(),
+            (screen_width * 0.5 - (window.allocation().width() / 2) as f32) as i32,
+            (screen_height * 0.3) as i32,
         );
     }
 
