@@ -10,8 +10,9 @@ use crate::gui::result_list::{result_list_clear, result_list_new};
 use crate::gui::result_list_row::handle_enter;
 use crate::gui::searchbox::searchbox_new;
 use crate::show_dialog;
+use findex_plugin::findex_internal::KeyboardShortcut;
 use gtk::builders::BoxBuilder;
-use gtk::gdk::{EventKey, EventMask, Screen};
+use gtk::gdk::{EventKey, EventMask, ModifierType, Screen};
 use gtk::prelude::*;
 use gtk::{
     gdk, Adjustment, Entry, ListBox, ListBoxRow, MessageType, Orientation, ScrolledWindow, Window,
@@ -170,7 +171,8 @@ impl GUI {
                 &*tilde("~/.config/findex/toggle_file")
             };
             inotify
-                .add_watch(toggle_file, watch_mask)
+                .watches()
+                .add(toggle_file, watch_mask)
                 .expect("Failed to add toggle file to inotify watch list");
             let (tx, rx) = gdk::glib::MainContext::channel::<()>(gdk::glib::PRIORITY_DEFAULT);
 
@@ -243,9 +245,10 @@ fn keypress_handler(
     entry: Entry,
     scrolled_container: ScrolledWindow,
     list_box: ListBox,
-    event: &EventKey,
+    eventkey: &EventKey,
 ) -> Inhibit {
-    let key_name = event.keyval().name().unwrap();
+    let modifier_type = KeyboardShortcut::clean_modifier_type(eventkey.state());
+    let key_name = eventkey.keyval().name().unwrap();
 
     if key_name == "Escape" {
         GUI::hide_window(window);
@@ -326,6 +329,18 @@ fn keypress_handler(
         }
 
         Inhibit(true)
+    } else if modifier_type == ModifierType::CONTROL_MASK {
+        if let Ok(row_idx) = key_name.parse::<i32>() {
+            if let Some(row) = list_box.row_at_index(row_idx) {
+                handle_enter(&row);
+
+                Inhibit(true)
+            } else {
+                Inhibit(false)
+            }
+        } else {
+            Inhibit(false)
+        }
     } else {
         if !entry.has_focus() {
             entry.grab_focus();

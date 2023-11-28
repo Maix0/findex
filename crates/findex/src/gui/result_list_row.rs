@@ -21,11 +21,14 @@ pub fn result_list_row(
     app_name: &str,
     app_desc: ROption<&str>,
     app_cmd: &ApplicationCommand,
+    trigger_idx: Option<usize>,
 ) -> ListBoxRow {
     let box1 = BoxBuilder::new()
         .orientation(Orientation::Horizontal)
         .expand(true)
         .build();
+    box1.style_context()
+        .add_class("findex-result-icon-container");
 
     let app_icon = Image::builder()
         .pixbuf(&get_icon(app_icon))
@@ -37,6 +40,21 @@ pub fn result_list_row(
         .orientation(Orientation::Vertical)
         .parent(&box1)
         .build();
+    box2.style_context()
+        .add_class("findex-result-info-container");
+
+    if let Some(trigger_idx) = trigger_idx {
+        let keyboard_shortcut_label = Label::builder()
+            .parent(&box1)
+            .use_markup(true)
+            .label(&format!("Ctrl+{trigger_idx}"))
+            .xalign(1f32)
+            .expand(true)
+            .build();
+        keyboard_shortcut_label
+            .style_context()
+            .add_class("findex-result-trigger-shortcut");
+    }
 
     let app_name_label = Label::builder()
         .parent(&box2)
@@ -66,29 +84,32 @@ pub fn result_list_row(
             .add_class("findex-result-app-description");
     }
 
-    let app_cmd_label = Label::builder()
-        .label(&match app_cmd {
-            ApplicationCommand::Command(cmd) => cmd.to_string(),
-            ApplicationCommand::Id(id) => strip_parameters(
-                DesktopAppInfo::new(id)
-                    .unwrap()
-                    .commandline()
-                    .unwrap()
-                    .to_str()
-                    .unwrap(),
-            ),
-        })
-        .expand(true)
-        .parent(&box2)
-        .justify(Justification::Left)
-        .xalign(0f32)
-        .max_width_chars(1)
-        .hexpand(true)
-        .ellipsize(EllipsizeMode::End)
-        .build();
-    app_cmd_label
-        .style_context()
-        .add_class("findex-result-app-command");
+    if *app_cmd != ApplicationCommand::None {
+        let app_cmd_label = Label::builder()
+            .label(&match app_cmd {
+                ApplicationCommand::Command(cmd) => cmd.to_string(),
+                ApplicationCommand::Id(id) => strip_parameters(
+                    DesktopAppInfo::new(id)
+                        .unwrap()
+                        .commandline()
+                        .unwrap()
+                        .to_str()
+                        .unwrap(),
+                ),
+                _ => unreachable!()
+            })
+            .expand(true)
+            .parent(&box2)
+            .justify(Justification::Left)
+            .xalign(0f32)
+            .max_width_chars(1)
+            .hexpand(true)
+            .ellipsize(EllipsizeMode::End)
+            .build();
+        app_cmd_label
+            .style_context()
+            .add_class("findex-result-app-command");
+    }
 
     let row = ListBoxRow::builder().parent(listbox).child(&box1).build();
     row.style_context().add_class("findex-result-row");
@@ -109,6 +130,12 @@ pub fn handle_interaction(row: &ListBoxRow) {
 
     match cmd {
         ApplicationCommand::Command(cmd) => {
+            // Ideally, plugins should provide a None variant for this, but rogue plugins
+            // can do anything :)
+            if cmd.is_empty() {
+                return;
+            }
+
             row.toplevel().unwrap().hide();
             let Some(cmd) = split(cmd) else {
                 show_dialog("Error", "Failed to launch application", MessageType::Error);
@@ -126,6 +153,12 @@ pub fn handle_interaction(row: &ListBoxRow) {
             }
         }
         ApplicationCommand::Id(id) => {
+            // Ideally, plugins should provide a None variant for this, but rogue plugins
+            // can do anything :)
+            if id.is_empty() {
+                return;
+            }
+
             row.toplevel().unwrap().hide();
             let Some(desktop_appinfo) = DesktopAppInfo::new(id) else {
                 show_dialog("Error", "Failed to launch application", MessageType::Error);
@@ -140,6 +173,7 @@ pub fn handle_interaction(row: &ListBoxRow) {
                 );
             }
         }
+        ApplicationCommand::None => {}
     }
 }
 

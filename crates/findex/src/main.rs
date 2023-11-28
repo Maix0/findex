@@ -10,7 +10,17 @@ mod app_list;
 mod config;
 mod gui;
 
+static FINDEX_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 fn main() {
+    if std::env::args().any(|arg| arg == "--about") {
+        println!("Findex v{FINDEX_VERSION}");
+        println!("Author: MD Gaziur Rahman Noor <mdgaziurrahmannoor@gmail.com>");
+        println!("License: GPL3");
+        println!("Report issues at: https://github.com/mdgaziur/findex/issues");
+        return;
+    }
+
     println!("[INFO] Starting Findex...");
     gtk::init().expect("Failed to init GTK");
     if !FINDEX_CONFIG.error.is_empty() {
@@ -29,14 +39,14 @@ fn main() {
         if !watch_dir.exists() {
             continue;
         }
-        if let Err(e) = inotify.add_watch(&watch_dir, watch_mask) {
+        if let Err(e) = inotify.watches().add(&watch_dir, watch_mask) {
             eprintln!("[WARN] Failed to watch `{}`: {}", watch_dir.display(), e);
         }
     }
 
     let xdg_data_home = base_directories.get_data_home().join("applications");
     if xdg_data_home.exists() {
-        if let Err(e) = inotify.add_watch(&xdg_data_home, watch_mask) {
+        if let Err(e) = inotify.watches().add(&xdg_data_home, watch_mask) {
             eprintln!(
                 "[WARN] Failed to watch `{}`: {}",
                 xdg_data_home.display(),

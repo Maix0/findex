@@ -1,37 +1,14 @@
-use std::ffi::OsStr;
 use daemonize::Daemonize;
 use inotify::{Inotify, WatchMask};
-use nix::libc::{pid_t, time_t};
+use nix::libc::time_t;
 use nix::time::ClockId;
 use shellexpand::tilde;
+use std::ffi::OsStr;
 use std::fs::{create_dir, File};
 use std::path::Path;
-use std::process::Command;
 use std::time::Duration;
 use subprocess::{ExitStatus, Popen, PopenConfig, Redirection};
-
-fn getpid(name: &str) -> Option<pid_t> {
-    let output = match Command::new("pidof").arg(name).output() {
-        Ok(o) => o,
-        Err(e) => {
-            eprintln!("[ERROR] Failed to run `pidof findex {name}`: {e}");
-            return None;
-        }
-    };
-
-    let pid_s = String::from_utf8(output.stdout)
-        .unwrap()
-        .split('\n')
-        .take(1)
-        .map(|s| s.to_string())
-        .collect::<String>();
-
-    if pid_s.is_empty() {
-        None
-    } else {
-        Some(pid_s.parse().unwrap())
-    }
-}
+use sysinfo::{ProcessRefreshKind, RefreshKind, System, SystemExt};
 
 fn findex_daemon(current_time: time_t) {
     fn spawn_findex(findex_output: File) -> Popen {
@@ -55,7 +32,8 @@ fn findex_daemon(current_time: time_t) {
     let mut inotify = Inotify::init().expect("Failed to init inotify");
     let watch_mask = WatchMask::CREATE | WatchMask::MODIFY | WatchMask::MOVE | WatchMask::DELETE;
     inotify
-        .add_watch(&*tilde("~/.config/findex/"), watch_mask)
+        .watches()
+        .add(&*tilde("~/.config/findex/"), watch_mask)
         .expect("Failed to watch `~/.config/findex/`");
     loop {
         if let Ok(Some(exit_status)) = findex_process.wait_timeout(Duration::from_millis(500)) {
@@ -92,8 +70,12 @@ fn findex_daemon(current_time: time_t) {
 }
 
 fn main() {
-    if let Some(pid) = getpid("findex") {
-        eprintln!("[ERROR] Findex is already running with pid: {pid}");
+    if System::new_with_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::new()))
+        .processes_by_exact_name("findex")
+        .count()
+        > 0
+    {
+        eprintln!("[ERROR] Findex is already running");
         eprintln!("[ERROR] Help: You may want to kill with `killall findex findex-daemon`");
 
         return;
