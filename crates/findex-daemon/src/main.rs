@@ -50,7 +50,7 @@ fn findex_daemon(current_time: time_t) {
         }
 
         let mut buf = [0; 1024];
-        match inotify.read_events(&mut buf) {
+        match inotify.read_events_blocking(&mut buf) {
             Ok(mut events) => {
                 if let Some(event) = events.next() {
                     if event.name == Some(OsStr::new("toggle_file")) && events.next().is_none() {
